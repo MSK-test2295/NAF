@@ -37,6 +37,21 @@
     environment: 'prod-usw2',
     deploymentId: '629e7b7d-e7b8-43ed-8bc8-b997efb212d0'
   });
+      // ★ NAME CAPTURE (1 of 2) — maps form fields to Genesys identity traits.
+    //    Live Now shows a name only when it can bind identity traits.
+    //    There is NO trait literally called "name" — identity = givenName + familyName + email.
+    globalTraitsMapper: [
+      { "fieldName": "givenName",  "traitName": "givenName"  },
+      { "fieldName": "familyName", "traitName": "familyName" },
+      { "fieldName": "email",      "traitName": "email"      },
+      { "fieldName": "cellPhone",  "traitName": "cellPhone"  }
+    ]
+  });
+
+  ac('pageview');
+
+  // ★ NAME CAPTURE (2 of 2) — track the rate-quote form so submitted values become traits.
+  ac('forms:track', '#rate-quote-form', { captureFormDataOnSubmit: true });
 </script>
 
 <!-- ===============  END GENESYS PREDICTIVE ENGAGEMENT  =============== -->
