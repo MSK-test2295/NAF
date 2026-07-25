@@ -1,77 +1,55 @@
-# Meridian Home Lending — Predictive Engagement demo site
-
-A single-file, premium-looking mortgage-lender landing page built to demo **Genesys Predictive Engagement digital user tracking**. The lead form is the demo instrument: when a visitor submits it, their name shows up in **Live Now** instead of "Unknown".
-
+Meridian Home Lending — Predictive Engagement demo site (Web Messaging)
+A single-file, premium-looking mortgage-lender landing page built to demo Genesys Predictive Engagement digital user tracking on Web Messaging (Messenger). The lead form is the demo instrument: when a visitor submits it, their name shows up in Live Now instead of "Unknown".
 Everything is in `index.html`. No build step, no dependencies.
-
+> **Your setup:** Your org is on **Web Messaging**, so this site uses the **Messenger bootstrap** (`genesys.min.js` / the `Genesys(...)` global) and the **Journey plugin**. It does **not** use the legacy `ac(...)` tracking snippet — those are two different, incompatible SDKs.
 ---
-
-## 1. The only two things you must edit
-
-Open `index.html` in Visual Studio and find the block near the top marked
-`GENESYS PREDICTIVE ENGAGEMENT`. Edit two values:
-
-1. **Org ID** — replace `PASTE-YOUR-ORG-ID-HERE` with your organization's ID (a GUID).
-2. **region** — set it to your org's region (e.g. `use1`, `use2`, `euw1`, `euc1`, `aps1`, `apne2`).
-
-**Where to get them:** Genesys Cloud → **Admin ▸ Predictive Engagement ▸ Global Settings ▸ Tracking Snippet**. The snippet Genesys generates there already has the correct script URL, Org ID, and region baked in.
-
-> Safest approach: paste your org's ready-made snippet over the one in the file, then keep the two lines marked **★ NAME CAPTURE** (the `globalTraitsMapper` array and the `ac('forms:track', ...)` call). Those two lines are what make the name appear.
-
+1. The one thing you must edit
+Open `index.html` in Visual Studio, find the block marked `GENESYS WEB MESSAGING`, and set:
+`deploymentId` — replace `YOUR-DEPLOYMENT-ID` with your Messenger Deployment ID.
+`environment` — already `prod-usw2` (US West 2), which matches your `apps.usw2.pure.cloud` region. Leave it unless your region changes.
+Where to get the Deployment ID: Genesys Cloud → Admin ▸ Message ▸ Messenger Deployments → open your deployment → copy the Deployment ID.
 ---
-
-## 2. Why your name showed as "Unknown" last time — and how this fixes it
-
-Predictive Engagement shows **Unknown** in Live Now whenever it can't tie the visitor to identity traits. Three things have to be true for the name to appear. The old page was almost certainly missing one:
-
-**a) The form fields must map to real Genesys identity traits.**
-There is **no trait literally called `name` or `fullName`.** Identity is built from `givenName`, `familyName`, and `email` (plus phone traits like `cellPhone`). If your previous form had a single `<input name="fullName">` or `name="name">`, PE captured the text but had nothing to bind identity to — so you stayed "Unknown."
-This site names its inputs `givenName`, `familyName`, `email`, `cellPhone`, and also declares a `globalTraitsMapper` so the mapping is explicit.
-
-**b) Every input needs a proper `name` attribute.**
-Genesys forms tracking only captures fields that have a `name`. All inputs here have one.
-
-**c) The form must actually be tracked, and the visitor must submit it.**
-`ac('forms:track', '#rate-quote-form', { captureFormDataOnSubmit: true })` binds tracking to the form. Until a visitor **submits**, Live Now will correctly show "Unknown" — that's expected. The name populates on submit.
-
-Also worth checking: password, hidden, and "sensitive" fields (anything matching card/ssn/cvv/etc.) are never tracked by design.
-
+2. Why your name showed as "Unknown" — and how this fixes it
+Two problems were stacked on top of each other:
+a) SDK mismatch. The previous file had the Messenger bootstrap (`Genesys(...)`, `deploymentId`) but kept legacy `ac('forms:track', ...)` / `globalTraitsMapper` lines under it. With Messenger the global function is `Genesys` — so the `ac(...)` calls referenced a function that doesn't exist, and the loose `globalTraitsMapper: [...]` fragment was a JavaScript syntax error. None of the identity code ran. (Page views still tracked, because Messenger's Journey plugin captures those automatically once deployed — that's why Live Now showed a session but an empty name.)
+b) No trait mapping. Even correctly written, identity in Live Now is built from the traits `givenName`, `familyName`, and `email` (plus phone traits like `cellPhone`). There is no trait literally called `name` or `fullName`. You have to map your form fields onto those trait names.
+The fix, now in the file, is the Messenger-native command:
+```javascript
+Genesys('subscribe', 'Journey.ready', function () {
+  Genesys('command', 'Journey.formsTrack', {
+    selector: '#rate-quote-form',
+    formName: 'rate quote',
+    captureFormDataOnAbandon: false,
+    traitsMapper: [
+      { fieldName: 'givenName',  traitName: 'givenName'  },
+      { fieldName: 'familyName', traitName: 'familyName' },
+      { fieldName: 'email',      traitName: 'email'      },
+      { fieldName: 'cellPhone',  traitName: 'cellPhone'  }
+    ]
+  });
+});
+```
+The form's inputs are already named `givenName`, `familyName`, `email`, and `cellPhone`, so they line up with the mapper. The name populates only after the visitor submits the form — before that, "Unknown" is expected and correct.
 ---
-
-## 3. Deploy to GitHub Pages
-
-1. Create a new GitHub repository (e.g. `pe-demo-site`).
-2. Add `index.html` at the **repo root** and commit/push. (In Visual Studio: Git Changes → Commit → Push.)
-3. In the repo on GitHub: **Settings ▸ Pages**.
-4. Under **Build and deployment**, set Source = **Deploy from a branch**, Branch = **main**, folder = **/ (root)**. Save.
-5. Wait ~1 minute. Your site goes live at `https://<your-username>.github.io/<repo-name>/`.
-
+3. Make sure journey tracking is on for the deployment
+For the Journey plugin to run at all, journey/Predictive Engagement tracking must be enabled on the Messenger deployment (Admin ▸ Message ▸ Messenger Deployments ▸ your deployment). Yours already is — your screenshots show page views in Live Now — so there's nothing to change here. Noted only for completeness.
 ---
-
-## 4. Point Predictive Engagement at your domain
-
-Add your GitHub Pages domain to the allowed list, or PE won't track it:
-
-**Admin ▸ Predictive Engagement ▸ Global Settings ▸ Tracking Settings ▸ Allowed domains** → add `<your-username>.github.io`.
-
-Tip from Genesys: start with just the allowed domain, confirm tracking works in Live Now, then configure the rest of the tracking settings.
-
+4. Deploy to GitHub Pages
+Create a GitHub repo (e.g. `pe-demo-site`).
+Add `index.html` at the repo root, commit, and push. (Visual Studio: Git Changes → Commit → Push.)
+On GitHub: Settings ▸ Pages → Source Deploy from a branch → Branch main / folder / (root) → Save.
+Wait ~1 minute. Live at `https://<your-username>.github.io/<repo-name>/`.
+If your Messenger deployment uses Restrict domain access, add your `<your-username>.github.io` domain to its allowed list, or Messenger won't load there. (If tracking already works on your Pages URL, the domain is fine.)
 ---
-
-## 5. Verify in Live Now
-
-1. Open your live GitHub Pages URL in a normal browser tab.
-2. In Genesys Cloud, open **Live Now** (Performance ▸ Workspace ▸ Live Now, or the Journey view). Live Now refreshes every few seconds.
-3. You'll appear as a visitor. **Before** you submit the form, your name is "Unknown" — expected.
-4. Fill in first name, last name, email, phone and click **See my rate**.
-5. Within a few seconds your session should update with your **name** (from `givenName` + `familyName`) and email.
-
-If it still says Unknown after submitting, check in this order: (1) Org ID/region correct, (2) your domain is in Allowed domains, (3) the field `name` attributes weren't changed, (4) you actually clicked submit, (5) look for the tracking request in the browser DevTools ▸ Network tab.
-
+5. Verify in Live Now
+Open your live GitHub Pages URL in a normal browser tab.
+In Genesys Cloud open Live Now (Orchestration ▸ Predictive Engagement ▸ Live Now). It refreshes every few seconds.
+You appear as a visitor. Before submitting the form, Name = "Unknown" — expected.
+Fill first name, last name, email, phone → click See my rate.
+Within a few seconds the session updates: Name = givenName + familyName, plus email/phone in the Customer Summary.
+Still Unknown after submitting? Check in order: (1) real `deploymentId` set, (2) `environment` matches your region, (3) the input `name` attributes weren't changed, (4) you actually clicked submit, (5) open DevTools ▸ Console for Genesys/Journey errors, and DevTools ▸ Network to confirm the tracking request fires on submit.
 ---
-
-## 6. Notes
-
-- **GDPR / consent:** For a real site you must collect tracking consent (a banner/dialog) before Predictive Engagement tracks visitors. This demo omits it for simplicity.
-- **Legacy vs Web Messaging:** This page uses the **Predictive Engagement tracking snippet (Journey JavaScript SDK)** — the classic approach that populates Live Now and where traits mapping decides name-vs-Unknown. Genesys is steering Genesys Cloud CX customers toward **Web Messaging / Messenger**. If your org is set up that way, the identity concept is identical but you'd deploy Messenger and map traits via the Journey plugin instead of the tracking snippet. Ask and I'll wire that variant.
-- **Fictional content:** "Meridian Home Lending," the rates, and NMLS #000000 are all placeholders for a demo — not a real lender or an offer to lend.
+6. Notes
+GDPR / consent: In production, collect tracking consent before Predictive Engagement tracks visitors. This demo omits it for simplicity.
+Guest vs authenticated: Mapping traits via `Journey.formsTrack` is enough to show the name in Live Now for a guest (unauthenticated) visitor — which is your goal. If you later want the session firmly linked to an External Contact record, that's authenticated web messaging (an OAuth identity provider), which is a larger setup.
+Fictional content: "Meridian Home Lending," the sample rates, and NMLS #000000 are placeholders for a demo — not a real lender or an offer to lend.
